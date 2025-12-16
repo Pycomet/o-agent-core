@@ -1,0 +1,20 @@
+{
+  "name": "o-agent-core-llm-jobs",
+  "version": "0.1.0",
+  "description": "Vercel AI SDK v5 Trigger.dev jobs for O-Agent Core",
+  "type": "module",
+  "scripts": {
+    "dev": "trigger.dev dev",
+    "deploy": "trigger.dev deploy"
+  },
+  "dependencies": {
+    "@ai-sdk/openai": "^2.0.0",
+    "@trigger.dev/sdk": "^4.0.0",
+    "ai": "^5.0.0",
+    "zod": "^3.22.0"
+  },
+  "devDependencies": {
+    "@types/node": "^20.0.0",
+    "typescript": "^5.3.0"
+  }
+}
