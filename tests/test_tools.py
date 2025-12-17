@@ -1,6 +1,7 @@
 """Tests for tool implementations"""
 
 import pytest
+import os
 from src.tools.math_tool import MathTool
 from src.tools.web_search import WebSearchTool
 from src.tools.governance_tool import GovernanceNoteTool
@@ -33,17 +34,32 @@ async def test_math_tool_invalid():
 
 @pytest.mark.asyncio
 async def test_web_search_tool():
-    """Test web search tool"""
+    """Test web search tool with DuckDuckGo
+    
+    Note: Uses free DuckDuckGo search (no API key required).
+    Falls back to mock results if package not installed.
+    """
     tool = WebSearchTool()
     
+    # Test with default num_results
     result = await tool.execute({"query": "Python best practices"})
     
     assert "results" in result
     assert "count" in result
+    assert "query" in result
+    assert "source" in result
     assert len(result["results"]) > 0
     assert "title" in result["results"][0]
     assert "snippet" in result["results"][0]
     assert "url" in result["results"][0]
+    
+    # Test with custom num_results
+    result = await tool.execute({"query": "Python testing", "num_results": 3})
+    assert len(result["results"]) <= 3
+    
+    # Check if using real or mock search
+    # DuckDuckGo is free, so should be "duckduckgo" or "mock" if it fails
+    assert result["source"] in ["duckduckgo", "mock"]
 
 
 @pytest.mark.asyncio

@@ -3,4 +3,3 @@
 from .memory import GovernanceStore
 
 __all__ = ["GovernanceStore"]
-

@@ -1,5 +1,3 @@
-"""Core agent implementation"""
-
 import json
 from typing import Optional, List
 import logging
@@ -15,7 +13,7 @@ logger = logging.getLogger(__name__)
 class Agent:
     """
     LLM-powered agent that can plan and execute tasks using tools.
-    
+
     The agent:
     - Accepts a natural language goal
     - Uses an LLM to decide which tools to call and in what order
@@ -29,14 +27,6 @@ class Agent:
         tool_registry: Optional[ToolRegistry] = None,
         max_iterations: int = 5,
     ):
-        """
-        Initialize the agent.
-        
-        Args:
-            llm_client: LLM client for reasoning and tool selection
-            tool_registry: Registry of available tools (defaults to standard tools)
-            max_iterations: Maximum tool call iterations to prevent infinite loops
-        """
         self.llm_client = llm_client
         self.tool_registry = tool_registry or ToolRegistry()
         self.max_iterations = max_iterations
@@ -49,59 +39,61 @@ class Agent:
     ) -> TaskResult:
         """
         Execute a task using the agent.
-        
+
         This method is idempotent - same goal + context produces the same result
         (assuming deterministic tool behavior and LLM temperature=0).
-        
+
         Args:
             goal: Natural language description of the task
             context: Optional additional context
             tool_filter: Optional list of tool names to restrict usage
-            
+
         Returns:
             TaskResult with status, output, and complete trace
         """
         state = ExecutionState()
-        
+
         try:
             # Build system message
             system_msg = self._build_system_message()
-            
+
             # Build user message
             user_msg = f"Goal: {goal}"
             if context:
                 user_msg += f"\n\nContext: {context}"
-            
+
             # Initialize conversation
             messages = [
                 LLMMessage(role="system", content=system_msg),
                 LLMMessage(role="user", content=user_msg),
             ]
-            
+
             # Get available tools
             tool_definitions = self.tool_registry.get_tool_definitions(tool_filter)
-            
+
             # Main execution loop
             iteration = 0
             while iteration < self.max_iterations:
                 iteration += 1
-                
+
                 # Get LLM response
                 response = await self.llm_client.generate_with_tools(
                     messages=messages,
                     tools=tool_definitions,
                     temperature=0.7,
                 )
-                
+
                 # Check if LLM wants to call tools
                 if response.tool_calls:
                     # Process each tool call
                     for tool_call in response.tool_calls:
                         function_name = tool_call["function"]["name"]
-                        
+
                         # Parse arguments
                         try:
-                            function_args = json.loads(tool_call["function"]["arguments"])
+                            function_args = json.loads(
+                                tool_call["function"]["arguments"]
+                            )
                         except json.JSONDecodeError as e:
                             error_msg = f"Invalid JSON in tool arguments: {e}"
                             state.add_tool_call_step(
@@ -110,7 +102,7 @@ class Agent:
                                 error=error_msg,
                             )
                             continue
-                        
+
                         # Execute tool
                         try:
                             result = await self.tool_registry.execute_tool(
@@ -121,7 +113,7 @@ class Agent:
                                 tool_args=function_args,
                                 result=result,
                             )
-                            
+
                             # Add tool result to conversation
                             messages.append(
                                 LLMMessage(
@@ -137,7 +129,7 @@ class Agent:
                                 tool_args=function_args,
                                 error=error_msg,
                             )
-                            
+
                             # Add error to conversation
                             messages.append(
                                 LLMMessage(
@@ -146,7 +138,7 @@ class Agent:
                                     name=function_name,
                                 )
                             )
-                    
+
                     # Add assistant message to history (for tool calls)
                     messages.append(
                         LLMMessage(
@@ -155,10 +147,10 @@ class Agent:
                             tool_calls=response.tool_calls,
                         )
                     )
-                    
+
                     # Continue loop to get next response
                     continue
-                
+
                 # No tool calls - LLM provided final answer
                 if response.content:
                     state.add_final_answer(response.content)
@@ -168,18 +160,18 @@ class Agent:
                     # No content and no tool calls - unusual
                     state.set_error("LLM returned empty response")
                     break
-            
+
             # Check if we hit max iterations
             if iteration >= self.max_iterations and state.status == "running":
                 state.set_partial(
                     output=state.final_output or "Task incomplete",
                     error=f"Maximum iterations ({self.max_iterations}) reached",
                 )
-            
+
         except Exception as e:
             logger.exception("Agent execution failed")
             state.set_error(f"Agent execution failed: {str(e)}")
-        
+
         # Convert to TaskResult
         return self._state_to_result(state)
 
@@ -202,15 +194,11 @@ Guidelines:
     def _state_to_result(self, state: ExecutionState) -> TaskResult:
         """Convert ExecutionState to TaskResult schema"""
         # Convert ExecutionStep objects to schema format
-        trace_items = [
-            ExecutionStepSchema(**step.model_dump())
-            for step in state.steps
-        ]
-        
+        trace_items = [ExecutionStepSchema(**step.model_dump()) for step in state.steps]
+
         return TaskResult(
             status=state.status,
             output=state.final_output or "",
             trace=trace_items,
             error=state.error,
         )
-

@@ -15,12 +15,8 @@ class ExecutionStep(BaseModel):
     tool_name: Optional[str] = Field(
         None, description="Name of tool called (if action=tool_call)"
     )
-    tool_args: Optional[dict] = Field(
-        None, description="Arguments passed to tool"
-    )
-    result: Optional[Any] = Field(
-        None, description="Result from tool or reasoning"
-    )
+    tool_args: Optional[dict] = Field(None, description="Arguments passed to tool")
+    result: Optional[Any] = Field(None, description="Result from tool or reasoning")
     timestamp: str = Field(
         default_factory=lambda: datetime.utcnow().isoformat() + "Z",
         description="ISO 8601 timestamp",
@@ -31,7 +27,7 @@ class ExecutionStep(BaseModel):
 class ExecutionState:
     """
     Tracks the execution state of an agent task.
-    
+
     Maintains a step-by-step trace of all actions, tool calls,
     and reasoning performed during task execution.
     """
@@ -46,7 +42,7 @@ class ExecutionState:
     def add_reasoning_step(self, reasoning: str) -> None:
         """
         Add a reasoning step to the trace.
-        
+
         Args:
             reasoning: The reasoning content (can be redacted in production)
         """
@@ -67,7 +63,7 @@ class ExecutionState:
     ) -> None:
         """
         Add a tool call step to the trace.
-        
+
         Args:
             tool_name: Name of the tool called
             tool_args: Arguments passed to the tool
@@ -88,7 +84,7 @@ class ExecutionState:
     def add_final_answer(self, answer: str) -> None:
         """
         Add the final answer step.
-        
+
         Args:
             answer: The final answer/output from the agent
         """
@@ -104,7 +100,7 @@ class ExecutionState:
     def set_success(self, output: str) -> None:
         """
         Mark execution as successful.
-        
+
         Args:
             output: Final output message
         """
@@ -114,7 +110,7 @@ class ExecutionState:
     def set_error(self, error: str) -> None:
         """
         Mark execution as failed.
-        
+
         Args:
             error: Error message
         """
@@ -124,7 +120,7 @@ class ExecutionState:
     def set_partial(self, output: str, error: str) -> None:
         """
         Mark execution as partially successful.
-        
+
         Args:
             output: Partial output achieved
             error: Error that prevented full completion
@@ -140,7 +136,7 @@ class ExecutionState:
     def to_dict(self) -> dict:
         """
         Convert state to dictionary format.
-        
+
         Returns:
             Dictionary containing status, output, trace, and error
         """
@@ -150,4 +146,3 @@ class ExecutionState:
             "trace": [step.model_dump() for step in self.steps],
             "error": self.error,
         }
-

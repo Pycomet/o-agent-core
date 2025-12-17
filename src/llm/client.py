@@ -1,5 +1,3 @@
-"""Abstract LLM client interface"""
-
 from abc import ABC, abstractmethod
 from typing import List, Dict, Any, Optional
 from pydantic import BaseModel
@@ -11,7 +9,9 @@ class LLMMessage(BaseModel):
     role: str  # "system", "user", "assistant", "tool"
     content: str
     name: Optional[str] = None  # For tool responses
-    tool_calls: Optional[List[Dict[str, Any]]] = None  # For assistant messages with tool calls
+    tool_calls: Optional[
+        List[Dict[str, Any]]
+    ] = None  # For assistant messages with tool calls
 
 
 class LLMResponse(BaseModel):
@@ -26,14 +26,17 @@ class LLMResponse(BaseModel):
 class LLMClient(ABC):
     """
     Abstract LLM client interface.
-    
+
     Designed to match Vercel AI SDK patterns while being swappable
     for future "Sovereign AI CEO" model integration.
     """
 
     @abstractmethod
     async def generate(
-        self, messages: List[LLMMessage], temperature: float = 0.7, max_tokens: Optional[int] = None
+        self,
+        messages: List[LLMMessage],
+        temperature: float = 0.7,
+        max_tokens: Optional[int] = None,
     ) -> LLMResponse:
         """
         Generate a completion from the LLM.
@@ -69,4 +72,3 @@ class LLMClient(ABC):
             LLMResponse potentially containing tool calls
         """
         pass
-

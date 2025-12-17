@@ -64,7 +64,17 @@ function jsonSchemaToZod(schema: any): z.ZodType {
         }
         break;
       case 'number':
+      case 'integer':  // JSON Schema "integer" maps to z.number() in Zod
         fieldSchema = z.number();
+        if (p.type === 'integer') {
+          fieldSchema = fieldSchema.int();  // Enforce integer validation
+        }
+        if (p.minimum !== undefined) {
+          fieldSchema = fieldSchema.min(p.minimum);
+        }
+        if (p.maximum !== undefined) {
+          fieldSchema = fieldSchema.max(p.maximum);
+        }
         if (p.description) {
           fieldSchema = fieldSchema.describe(p.description);
         }

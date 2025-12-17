@@ -9,7 +9,7 @@ from ..storage.memory import governance_store
 class GovernanceNoteTool(BaseTool):
     """
     Tool for adding governance notes to proposals.
-    
+
     Designed for AI-led organization workflows where the agent can
     document decisions, reviews, and actions on governance proposals.
     """
@@ -42,10 +42,10 @@ class GovernanceNoteTool(BaseTool):
     async def execute(self, params: Dict[str, Any]) -> Dict[str, Any]:
         """
         Add a governance note to a proposal.
-        
+
         Args:
             params: Must contain 'proposal_id' and 'note' keys
-            
+
         Returns:
             Dictionary confirming the note was added
         """
@@ -69,14 +69,13 @@ class GovernanceNoteTool(BaseTool):
 
         # Add note to governance store
         governance_store.add_note(proposal_id.strip(), note.strip())
-        
+
         # Get current note count for this proposal
         all_notes = governance_store.get_notes(proposal_id.strip())
-        
+
         return {
             "success": True,
             "proposal_id": proposal_id.strip(),
             "note": note.strip(),
             "total_notes": len(all_notes),
         }
-

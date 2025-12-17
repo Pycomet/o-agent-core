@@ -17,6 +17,7 @@ sdist/
 var/
 wheels/
 *.egg-info/
+.cursor/
 .installed.cfg
 *.egg
 

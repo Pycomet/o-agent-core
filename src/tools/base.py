@@ -7,7 +7,7 @@ from typing import Dict, Any
 class BaseTool(ABC):
     """
     Abstract base class for all agent tools.
-    
+
     Tools are the primary way for the agent to interact with external
     systems and perform actions.
     """
@@ -29,7 +29,7 @@ class BaseTool(ABC):
     def parameters_schema(self) -> Dict[str, Any]:
         """
         JSON Schema defining the parameters this tool accepts.
-        
+
         Should follow OpenAI function calling format:
         {
             "type": "object",
@@ -48,13 +48,13 @@ class BaseTool(ABC):
     async def execute(self, params: Dict[str, Any]) -> Dict[str, Any]:
         """
         Execute the tool with given parameters.
-        
+
         Args:
             params: Dictionary of parameters matching the schema
-            
+
         Returns:
             Dictionary containing the result of execution
-            
+
         Raises:
             ValueError: If parameters are invalid
             Exception: If tool execution fails
@@ -64,7 +64,7 @@ class BaseTool(ABC):
     def to_openai_format(self) -> Dict[str, Any]:
         """
         Convert tool definition to OpenAI function calling format.
-        
+
         Returns:
             Dictionary in OpenAI tools format
         """
@@ -76,4 +76,3 @@ class BaseTool(ABC):
                 "parameters": self.parameters_schema,
             },
         }
-

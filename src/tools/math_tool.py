@@ -3,7 +3,6 @@
 import ast
 import operator
 from typing import Dict, Any
-
 from .base import BaseTool
 
 
@@ -48,13 +47,13 @@ class MathTool(BaseTool):
     def _safe_eval(self, node: ast.AST) -> float:
         """
         Recursively evaluate AST node with only safe operations.
-        
+
         Args:
             node: AST node to evaluate
-            
+
         Returns:
             Numeric result
-            
+
         Raises:
             ValueError: If expression contains unsafe operations
         """
@@ -83,10 +82,10 @@ class MathTool(BaseTool):
     async def execute(self, params: Dict[str, Any]) -> Dict[str, Any]:
         """
         Evaluate a mathematical expression safely.
-        
+
         Args:
             params: Must contain 'expression' key with string value
-            
+
         Returns:
             Dictionary with 'result' key containing the numeric result
         """
@@ -100,10 +99,10 @@ class MathTool(BaseTool):
         try:
             # Parse the expression into an AST
             tree = ast.parse(expression, mode="eval")
-            
+
             # Evaluate safely
             result = self._safe_eval(tree.body)
-            
+
             return {
                 "result": result,
                 "expression": expression,
@@ -114,4 +113,3 @@ class MathTool(BaseTool):
             raise ValueError("Division by zero")
         except Exception as e:
             raise ValueError(f"Failed to evaluate expression: {e}")
-

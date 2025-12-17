@@ -30,4 +30,3 @@ class ToolDefinition(BaseModel):
                 },
             }
         }
-

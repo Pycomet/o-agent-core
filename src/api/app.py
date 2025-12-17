@@ -1,7 +1,6 @@
-"""FastAPI application setup"""
-
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from contextlib import asynccontextmanager
 import logging
 import os
 from dotenv import load_dotenv
@@ -19,13 +18,34 @@ logging.basicConfig(
 
 logger = logging.getLogger(__name__)
 
-# Create FastAPI app
+
+# Lifespan event handler
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    """Handle startup and shutdown events"""
+    # Startup
+    logger.info("O-Agent Core starting up...")
+
+    # Verify environment variables
+    if not os.getenv("OPENAI_API_KEY"):
+        logger.warning("OPENAI_API_KEY not set - API calls will fail")
+
+    logger.info("O-Agent Core ready")
+
+    yield
+
+    # Shutdown
+    logger.info("O-Agent Core shutting down...")
+
+
+# Create FastAPI app with lifespan
 app = FastAPI(
     title="O-Agent Core",
     description="LLM Agent Execution Core for O.Foundation AI-led organization",
     version="0.1.0",
     docs_url="/docs",
     redoc_url="/redoc",
+    lifespan=lifespan,
 )
 
 # CORS middleware
@@ -50,24 +70,3 @@ async def root():
         "description": "LLM Agent Execution Core",
         "docs": "/docs",
     }
-
-
-# Startup event
-@app.on_event("startup")
-async def startup_event():
-    """Initialize on startup"""
-    logger.info("O-Agent Core starting up...")
-    
-    # Verify environment variables
-    if not os.getenv("OPENAI_API_KEY"):
-        logger.warning("OPENAI_API_KEY not set - API calls will fail")
-    
-    logger.info("O-Agent Core ready")
-
-
-# Shutdown event
-@app.on_event("shutdown")
-async def shutdown_event():
-    """Cleanup on shutdown"""
-    logger.info("O-Agent Core shutting down...")
-

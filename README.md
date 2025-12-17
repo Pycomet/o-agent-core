@@ -1,612 +1,561 @@
-# O-Agent Core
+# O‑Agent Core
 
-**LLM Agent Execution Core** for O.Foundation AI-led organization
+A minimal, production‑minded **LLM Agent Execution Core** built in Python.
 
-A production-ready Python service that executes natural language tasks using LLM-powered agents with tool orchestration, complete execution traces, and dual-mode operation (FastAPI + Trigger.dev).
+This project was implemented as part of the *Python Engineer – LLM Team* task for **O.Foundation**. The goal is not to over‑engineer, but to demonstrate clean architecture, safe tool execution, clear reasoning traces, and readiness for AI‑led organizational workflows.
 
-## 🏗️ Architecture
+At its core, this service accepts a natural‑language goal, decides whether to answer directly or use tools, executes those tools safely, and returns a structured result with a full execution trace.
 
-### Multi-Runtime Architecture with Vercel AI SDK v5
+---
 
-```mermaid
-flowchart TD
-    Client[External Client] -->|POST /run-task| API[FastAPI Layer]
-    TriggerDev[Trigger.dev Platform] -->|Job Invocation| Jobs[Python Agent Jobs]
-    Client -->|GET /governance-notes| API
-    API --> Agent[Agent Core Python]
-    Jobs --> Agent
-    Agent --> LLMClient[LLM Client Abstraction]
-    LLMClient --> TriggerVercel[TriggerVercelClient]
-    TriggerVercel -->|Trigger.dev API| NodeJob[Node.js LLM Jobs]
-    NodeJob --> VercelSDK[Vercel AI SDK v5]
-    VercelSDK --> OpenAI[OpenAI API]
-    Agent --> ToolRegistry[Tool Registry]
-    ToolRegistry --> WebSearch[WebSearchTool]
-    ToolRegistry --> Math[MathTool]
-    ToolRegistry --> Governance[GovernanceNoteTool]
-    Agent --> StateManager[Execution State Manager]
-    StateManager --> Trace[Execution Trace]
-    Governance --> Store[In-Memory Store]
-    
-    style Jobs fill:#e1f5ff
-    style Agent fill:#fff3cd
-    style NodeJob fill:#90EE90
-    style VercelSDK fill:#FF69B4
+## Why this exists
+
+AI‑led systems need more than raw LLM calls. They need:
+
+* A clear execution loop
+* Safe, well‑defined tools
+* Transparent traces that other systems can inspect
+* An API boundary that is easy to integrate and extend
+
+This repository is a small but realistic foundation for that kind of agent.
+
+---
+
+## High‑Level Architecture
+
+**Conceptually:**
+
+```
+Client / AI CEO
+      ↓
+ FastAPI API
+      ↓
+  Agent Core (Python)
+      ↓
+ LLM Client (abstracted)
+      ↓
+ Tool Registry → Tools
+      ↓
+ Execution Trace + Result
 ```
 
-### Key Components
+**Key ideas:**
 
-- **Agent Core** (`src/agent/core.py`): Main execution engine with multi-step reasoning (Python)
-- **LLM Abstraction** (`src/llm/`): Swappable LLM client using **Vercel AI SDK v5**
-- **Multi-Runtime Bridge** (`trigger/llm-jobs.ts`): Node.js jobs wrapping Vercel AI SDK
-- **Tool System** (`src/tools/`): Extensible tool registry with 3 implemented tools
-- **FastAPI Service** (`src/api/`): HTTP API for immediate task execution
-- **Trigger.dev Jobs** (`src/jobs/`): Async, scheduled, retriable job execution
-- **Execution Traces**: Complete step-by-step logs for AI CEO analysis
+* The **Agent** owns decision‑making and state
+* **Tools** are isolated, schema‑driven, and safe to call
+* The **LLM client** is abstracted so it can later be replaced by a sovereign or internal model
+* Every step produces a **machine‑readable trace**
 
-### 🎯 Vercel AI SDK v5 Integration
+The code is structured so this same agent can be run synchronously via HTTP or asynchronously via an orchestration layer like Trigger.dev.
 
-**Requirement Compliance:** "The LLM client must use the **Vercel AI SDK (v5 or later)** as the underlying communication layer"
+---
 
-This project uses the **actual Vercel AI SDK v5** (`ai@^5.0.0`) through a multi-runtime architecture:
+## Core Features
 
-**Architecture Flow:**
-```
-Python Agent → Trigger.dev → Node.js Job → Vercel AI SDK v5 → OpenAI
-```
+### Agent Execution Core
 
-**Benefits:**
-- ✅ **Literal compliance** with Vercel AI SDK requirement
-- ✅ **Clean Python architecture** for agent orchestration  
-- ✅ **No HTTP bridge overhead** (native Trigger.dev orchestration)
-- ✅ **Single LLM path** (no redundant clients)
-- ✅ **Easy swap** to Sovereign AI CEO later
+The `Agent` class:
 
-**How It Works:**
-1. Python agent calls `TriggerVercelClient`
-2. Client triggers Node.js Trigger.dev job
-3. Node.js job uses Vercel AI SDK v5 (`generateText()`, tool calling, etc.)
-4. Result flows back to Python agent
-5. Agent continues tool orchestration
+* Accepts a **goal**, optional **context**, and a set of **tool definitions**
+* Uses an LLM to decide whether to answer directly or call tools
+* Can call **multiple tools in sequence**
+* Maintains execution state:
 
-See `examples_vercel.py` for complete demonstrations.
+  * tool calls
+  * arguments
+  * results
+  * timestamps
+* Returns a **final structured response**:
 
-## 📦 Installation
-
-### Prerequisites
-
-- **Python 3.11+** - Agent orchestration
-- **Node.js 18+** - Vercel AI SDK v5 runtime
-- **OpenAI API key** - Used by Vercel AI SDK
-- **Trigger.dev account** - Required for Vercel AI SDK integration
-- (Optional) Docker for containerized deployment
-
-### Local Setup
-
-1. **Clone the repository**
-
-```bash
-cd o-agent-core
-```
-
-2. **Create virtual environment**
-
-```bash
-python -m venv venv
-source venv/bin/activate  # On Windows: venv\Scripts\activate
-```
-
-3. **Install dependencies**
-
-```bash
-# Python dependencies
-pip install -r requirements.txt
-
-# Node.js dependencies (for Vercel AI SDK v5)
-cd trigger && npm install && cd ..
-```
-
-4. **Configure environment variables**
-
-Create a `.env` file (use `.env.example` as template):
-
-```bash
-# LLM Provider (Vercel AI SDK v5 via Trigger.dev)
-LLMCLIENT_PROVIDER=vercel
-
-# OpenAI Configuration (used by Vercel AI SDK)
-OPENAI_API_KEY=your_api_key_here
-OPENAI_MODEL=gpt-4o-mini
-
-# Trigger.dev Configuration (REQUIRED for Vercel integration)
-TRIGGER_API_KEY=your_trigger_api_key_here
-TRIGGER_API_URL=https://api.trigger.dev
-
-# Application
-LOG_LEVEL=INFO
-ENVIRONMENT=development
-```
-
-## 🚀 Running the Service
-
-### FastAPI Mode (Immediate Execution)
-
-```bash
-# Development mode with auto-reload
-python main.py
-
-# Or using uvicorn directly
-uvicorn src.api.app:app --reload --host 0.0.0.0 --port 8000
-```
-
-Service will be available at:
-- API: http://localhost:8000
-- Interactive docs: http://localhost:8000/docs
-- ReDoc: http://localhost:8000/redoc
-
-### Trigger.dev Mode (Scheduled/Async Execution)
-
-**Required for Vercel AI SDK v5 integration**
-
-```bash
-# Install Trigger.dev CLI
-npm install -g trigger.dev
-
-# Run in development mode (starts both Python and Node.js jobs)
-npx trigger.dev@latest dev
-
-# Deploy to production (deploys multi-runtime jobs)
-npx trigger.dev@latest deploy
-```
-
-This starts both:
-- **Python jobs** (`src/jobs/`) - Agent orchestration
-- **Node.js jobs** (`trigger/llm-jobs.ts`) - Vercel AI SDK v5 wrapper
-
-### Docker Deployment
-
-```bash
-# Build and run with Docker Compose
-docker-compose up --build
-
-# Or build image separately
-docker build -t o-agent-core .
-docker run -p 8000:8000 --env-file .env o-agent-core
-```
-
-## 📝 Usage Examples
-
-### Example 1: Single Tool Usage (Math)
-
-**Request:**
-```bash
-curl -X POST http://localhost:8000/api/v1/run-task \
-  -H "Content-Type: application/json" \
-  -d '{
-    "goal": "Calculate 2 + 2"
-  }'
-```
-
-**Response:**
 ```json
 {
   "status": "success",
-  "output": "The result is 4.",
-  "trace": [
-    {
-      "step": 1,
-      "action": "tool_call",
-      "tool_name": "math",
-      "tool_args": {"expression": "2 + 2"},
-      "result": {"result": 4.0, "expression": "2 + 2"},
-      "timestamp": "2024-01-15T10:30:00Z"
-    },
-    {
-      "step": 2,
-      "action": "final_answer",
-      "result": "The result is 4.",
-      "timestamp": "2024-01-15T10:30:01Z"
-    }
-  ]
+  "output": "...",
+  "trace": [...]
 }
 ```
 
-### Example 2: Multi-Tool Usage (Search + Math)
+The agent’s internal reasoning is intentionally abstracted, but the structure of each step is preserved for later inspection by an AI CEO or governance layer.
 
-**Request:**
+---
+
+## Multi-Runtime Architecture
+
+This project uses a **hybrid Python + Node.js architecture** to leverage the best of both ecosystems:
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│                      Client / AI CEO                        │
+└────────────────────────────┬────────────────────────────────┘
+                             │
+                             ▼
+┌─────────────────────────────────────────────────────────────┐
+│              FastAPI (Python) - Agent Core                  │
+│  • Agent logic & tool execution                             │
+│  • Tool registry                                            │
+│  • HTTP API endpoints                                       │
+└────────────────────────────┬────────────────────────────────┘
+                             │
+                             ▼
+┌─────────────────────────────────────────────────────────────┐
+│            Trigger.dev - Job Orchestration                  │
+│  • Reliable job execution                                   │
+│  • Automatic retries                                        │
+│  • Environment routing (via API key prefixes)               │
+└────────────────────────────┬────────────────────────────────┘
+                             │
+                             ▼
+┌─────────────────────────────────────────────────────────────┐
+│         Node.js Job Runner (trigger/llm-jobs.ts)            │
+│  • Wraps Vercel AI SDK v5                                   │
+│  • Handles streaming & tool calls                           │
+│  • Type-safe with Zod schemas                               │
+└────────────────────────────┬────────────────────────────────┘
+                             │
+                             ▼
+┌─────────────────────────────────────────────────────────────┐
+│             Vercel AI SDK v5 + OpenAI                       │
+│  • Latest AI SDK features                                   │
+│  • Native tool calling                                      │
+│  • Streaming support                                        │
+└─────────────────────────────────────────────────────────────┘
+```
+
+**Why this architecture?**
+
+* **Vercel AI SDK v5** is only available in Node.js/TypeScript
+* **Agent logic & tools** are better suited to Python's ecosystem
+* **Trigger.dev** bridges both runtimes seamlessly
+* **Future-proof**: Easy to add sovereign AI models or swap components
+
+---
+
+## Trigger.dev Integration
+
+### 🔑 API Keys & Environment Routing
+
+Trigger.dev uses **API key prefixes** to route requests to different environments:
+
+| API Key Prefix | Environment | Use Case |
+|---------------|-------------|----------|
+| `tr_dev_*` | Development | Local testing with `npx trigger.dev@latest dev` |
+| `tr_prod_*` | Production | Deployed jobs (after `npx trigger.dev@latest deploy`) |
+
+**No environment parameter needed** - just use the right API key!
+
+### How It Works
+
+1. **Development**: 
+   - Start dev server: `cd trigger && npx trigger.dev@latest dev`
+   - Use `tr_dev_*` API key in `.env`
+   - Jobs run locally in your terminal
+
+2. **Production**:
+   - Deploy: `cd trigger && npx trigger.dev@latest deploy`
+   - Use `tr_prod_*` API key in `.env` or Docker
+   - Jobs run on Trigger.dev infrastructure
+
+---
+
+## Environment Variables
+
+Create a `.env` file in the project root with the following variables:
+
+| Variable | Required | Description | Example |
+|----------|----------|-------------|---------|
+| `OPENAI_API_KEY` | Yes | OpenAI API key for LLM calls | `sk-proj-...` |
+| `OPENAI_MODEL` | No | Model to use (default: gpt-4o-mini) | `gpt-4o-mini` |
+| `TRIGGER_API_KEY` | Yes | Trigger.dev API key (`tr_dev_*` or `tr_prod_*`) | `tr_prod_...` |
+| `TRIGGER_API_URL` | No | Trigger.dev API URL (default: https://api.trigger.dev) | `https://api.trigger.dev` |
+| `LLMCLIENT_PROVIDER` | No | LLM client provider (default: vercel) | `vercel` |
+| `LOG_LEVEL` | No | Logging level (default: INFO) | `INFO`, `DEBUG` |
+| `ENVIRONMENT` | No | Environment name (default: production) | `production`, `development` |
+| `HOST` | No | Server host (default: 0.0.0.0) | `0.0.0.0` |
+| `PORT` | No | Server port (default: 8000) | `8000` |
+
+**Example `.env` file:**
+
 ```bash
-curl -X POST http://localhost:8000/api/v1/run-task \
-  -H "Content-Type: application/json" \
-  -d '{
-    "goal": "Search for Python best practices and calculate how many results were found",
-    "context": "Looking for software development guidance"
-  }'
+# OpenAI Configuration
+OPENAI_API_KEY=sk-proj-your-key-here
+OPENAI_MODEL=gpt-4o-mini
+
+# Trigger.dev Configuration
+TRIGGER_API_KEY=tr_prod_your-key-here
+TRIGGER_API_URL=https://api.trigger.dev
+
+# Application Configuration
+LOG_LEVEL=INFO
+ENVIRONMENT=production
+HOST=0.0.0.0
+PORT=8000
 ```
 
-**Response:** Agent will:
-1. Call `web_search` tool to search for "Python best practices"
-2. Parse the result count
-3. Call `math` tool if needed
-4. Return synthesized answer with complete trace
+---
 
-### Example 3: Governance Note Tool
+## Implemented Tools
 
-**Request:**
-```bash
-curl -X POST http://localhost:8000/api/v1/run-task \
-  -H "Content-Type: application/json" \
-  -d '{
-    "goal": "Add a note to proposal-123 saying: Approved by technical review on 2024-01-15"
-  }'
-```
+### 1. MathTool (`math_evaluate`)
 
-**Retrieve Notes:**
-```bash
-curl http://localhost:8000/api/v1/governance-notes/proposal-123
-```
-
-**Response:**
-```json
-{
-  "proposal_id": "proposal-123",
-  "notes": [
-    {
-      "note": "Approved by technical review on 2024-01-15",
-      "timestamp": "2024-01-15T10:30:00Z"
-    }
-  ],
-  "count": 1
-}
-```
-
-### Example 4: Trigger.dev Job Execution
-
-Using Trigger.dev dashboard or API:
-
-```python
-# Trigger via API
-import httpx
-
-response = httpx.post(
-    "https://api.trigger.dev/api/v1/runs",
-    json={
-        "job": "run-agent-task",
-        "payload": {
-            "goal": "Calculate the square root of 144",
-            "tools": ["math"]
-        }
-    },
-    headers={"Authorization": f"Bearer {TRIGGER_API_KEY}"}
-)
-```
-
-## 🛠️ Available Tools
-
-### 1. MathTool (`math`)
-
-Safe arithmetic expression evaluator.
+Safely evaluates arithmetic expressions using Python's `ast` module.
 
 **Parameters:**
-- `expression` (string): Arithmetic expression (e.g., "(10 * 5) / 2")
+- `expression` (string): Mathematical expression to evaluate
 
-**Supported Operations:** `+`, `-`, `*`, `/`, `//`, `%`, `**`, parentheses
+**Supported operators:** `+`, `-`, `*`, `/`, `**`, `%`, `//`
+
+**Returns:** Numeric result
 
 **Example:**
 ```json
 {
-  "tool_name": "math",
-  "params": {"expression": "(2 + 3) * 4"}
+  "expression": "12 * (4 + 6)"
 }
 ```
 
-### 2. WebSearchTool (`web_search`)
-
-Web search for information (mock implementation, swappable with real API).
-
-**Parameters:**
-- `query` (string): Search query
-
-**Returns:** List of search results with title, snippet, URL
-
-### 3. GovernanceNoteTool (`governance_note`)
-
-Add governance notes to proposals (in-memory storage).
-
-**Parameters:**
-- `proposal_id` (string): Unique proposal identifier
-- `note` (string): Note content
-
-**Use Case:** AI-led governance workflows, proposal tracking
-
-## 🔧 Extension Guide
-
-### Adding a New Tool
-
-1. **Create tool class** in `src/tools/my_tool.py`:
-
-```python
-from .base import BaseTool
-
-class MyTool(BaseTool):
-    @property
-    def name(self) -> str:
-        return "my_tool"
-    
-    @property
-    def description(self) -> str:
-        return "Description of what my tool does"
-    
-    @property
-    def parameters_schema(self) -> dict:
-        return {
-            "type": "object",
-            "properties": {
-                "param1": {"type": "string", "description": "..."}
-            },
-            "required": ["param1"]
-        }
-    
-    async def execute(self, params: dict) -> dict:
-        # Implementation
-        return {"result": "..."}
-```
-
-2. **Register in ToolRegistry** (`src/tools/registry.py`):
-
-```python
-from .my_tool import MyTool
-
-# In __init__:
-tools = [MathTool(), WebSearchTool(), GovernanceNoteTool(), MyTool()]
-```
-
-### Integrating Onchain Tools (Web3)
-
-Example Web3Tool for blockchain interactions:
-
-```python
-class Web3Tool(BaseTool):
-    def __init__(self, rpc_url: str):
-        self.w3 = Web3(Web3.HTTPProvider(rpc_url))
-    
-    @property
-    def name(self) -> str:
-        return "web3_query"
-    
-    async def execute(self, params: dict) -> dict:
-        # Query blockchain, call smart contracts, etc.
-        balance = self.w3.eth.get_balance(params["address"])
-        return {"balance": str(balance)}
-```
-
-### AI-Led Governance Workflows
-
-**Scheduled Governance Audit:**
-
-```python
-# In src/jobs/agent_jobs.py (already included)
-@job("scheduled-governance-audit", cron="0 0 * * *")  # Daily at midnight
-async def scheduled_governance_audit():
-    # Agent reviews pending proposals
-    # Generates governance reports
-    # Executes automated actions
-    pass
-```
-
-**Proposal Review Pipeline:**
-
-```python
-@job("proposal-review")
-async def proposal_review_job(proposal_id: str, proposal_content: str):
-    agent = Agent(...)
-    result = await agent.execute_task(
-        goal=f"Review and assess proposal {proposal_id}",
-        context=proposal_content,
-        tool_filter=["web_search", "governance_note"]
-    )
-    return result.model_dump()
-```
-
-### Decentralized State Storage
-
-Swap in-memory storage for IPFS/Arweave:
-
-```python
-# src/storage/ipfs_store.py
-class IPFSGovernanceStore:
-    def __init__(self, ipfs_client):
-        self.ipfs = ipfs_client
-    
-    def add_note(self, proposal_id: str, note: str):
-        # Store on IPFS
-        cid = self.ipfs.add_json({"proposal_id": proposal_id, "note": note})
-        return cid
-```
-
-## 🧪 Testing
-
-### Run Tests
-
-```bash
-# Install test dependencies (already in requirements.txt)
-pip install pytest pytest-asyncio
-
-# Run all tests
-pytest tests/
-
-# Run with coverage
-pytest --cov=src tests/
-```
-
-### Manual Testing
-
-Use the interactive API docs at http://localhost:8000/docs to test endpoints visually.
-
-## 🏗️ Project Structure
-
-```
-o-agent-core/
-├── src/               # Python source code
-│   ├── agent/          # Agent execution engine
-│   ├── llm/            # LLM client abstraction (Vercel AI SDK v5)
-│   ├── tools/          # Tool implementations
-│   ├── schemas/        # Pydantic models
-│   ├── api/            # FastAPI application
-│   └── storage/        # Storage implementations
-├── trigger/            # Node.js Vercel AI SDK v5 layer
-│   ├── llm-jobs.ts     # Vercel AI SDK wrapper jobs
-│   ├── package.json    # Node.js dependencies
-│   └── tsconfig.json   # TypeScript configuration
-├── tests/              # Test suite
-├── main.py             # FastAPI entry point
-├── trigger.config.ts   # Trigger.dev config (Node.js runtime)
-├── requirements.txt    # Python dependencies
-├── examples_vercel.py  # Complete usage examples
-├── test_quick.py       # Quick local testing
-├── Dockerfile          # Docker image
-├── docker-compose.yml  # Docker Compose setup
-└── README.md          # This file
-```
-
-## 🔐 LLM Client Implementation with Vercel AI SDK v5
-
-The requirements specified **"must use Vercel AI SDK (v5 or later)"**. Since Vercel AI SDK is TypeScript/Node.js only, we implemented a **multi-runtime architecture**:
-
-### Architecture
-
-1. **Python Agent Layer** - Clean Python architecture for orchestration
-2. **Trigger.dev Bridge** - Native multi-runtime job orchestration
-3. **Node.js LLM Layer** - Wraps Vercel AI SDK v5 (`ai@^5.0.0`)
-4. **OpenAI Backend** - Used by Vercel AI SDK
-
-### Implementation Details
-
-- **`trigger/llm-jobs.ts`** - Node.js jobs using `generateText()` from Vercel AI SDK v5
-- **`src/llm/trigger_vercel_client.py`** - Python client that calls Node.js jobs
-- **`src/llm/factory.py`** - Factory pattern for swapping providers
-
-### Switching LLM Providers
-
-**Using Environment Variables:**
-```bash
-# .env file
-LLMCLIENT_PROVIDER=vercel      # Vercel AI SDK v5 (current)
-# LLMCLIENT_PROVIDER=sovereign  # Future: Sovereign AI CEO
-```
-
-**Per-Job Override:**
-```python
-# Use Vercel AI SDK v5 (default)
-agent = Agent(llm_client=LLMClientFactory.create_client(provider="vercel"))
-
-# Future: Use Sovereign AI CEO
-agent = Agent(llm_client=LLMClientFactory.create_client(provider="sovereign"))
-```
-
-### Why This Approach?
-
-✅ **Literal compliance** - Uses actual `ai` package (Vercel AI SDK v5)  
-✅ **Clean Python** - Agent orchestration stays in Python  
-✅ **No HTTP bridge** - Trigger.dev handles communication natively  
-✅ **Single path** - No redundant OpenAI client  
-✅ **Swappable** - Easy migration to Sovereign AI CEO
-
-See `examples_vercel.py` for complete demonstrations.
-
-## 📊 Key Design Decisions
-
-1. **Dual-Mode Architecture**: Agent core is framework-agnostic; FastAPI and Trigger.dev both call the same `Agent.execute_task()`
-2. **Idempotent Jobs**: Same inputs produce same outputs (deterministic with temperature=0)
-3. **Comprehensive Traces**: Every step logged for AI CEO analysis and debugging
-4. **Tool Extensibility**: Simple `BaseTool` interface for adding capabilities
-5. **Clean Abstractions**: Swappable LLM, storage, and tool implementations
-
-## 🚢 Deployment
-
-### Production Checklist
-
-- [ ] Set `ENVIRONMENT=production` in `.env`
-- [ ] Configure CORS origins in `src/api/app.py`
-- [ ] Set up proper secret management (not `.env` files)
-- [ ] Configure logging aggregation
-- [ ] Set up monitoring (health checks, traces)
-- [ ] Deploy Trigger.dev jobs: `npx trigger.dev@latest deploy`
-- [ ] Scale FastAPI with multiple workers: `uvicorn src.api.app:app --workers 4`
-
-### Environment Variables
-
-| Variable | Description | Default |
-|----------|-------------|---------|
-| `LLMCLIENT_PROVIDER` | LLM provider (`vercel`, `sovereign`) | `vercel` |
-| `OPENAI_API_KEY` | OpenAI API key (used by Vercel SDK) | Required |
-| `OPENAI_MODEL` | Model name | `gpt-4o-mini` |
-| `TRIGGER_API_KEY` | Trigger.dev API key (**REQUIRED**) | Required |
-| `TRIGGER_API_URL` | Trigger.dev API URL | `https://api.trigger.dev` |
-| `SOVEREIGN_AI_ENDPOINT` | Future: Sovereign AI endpoint | Optional |
-| `SOVEREIGN_AI_CREDENTIALS` | Future: Sovereign AI credentials | Optional |
-| `LOG_LEVEL` | Logging level | `INFO` |
-| `ENVIRONMENT` | Environment mode | `development` |
-| `HOST` | Server host | `0.0.0.0` |
-| `PORT` | Server port | `8000` |
-
-## 🤝 Contributing
-
-This is a test task implementation. For production use:
-
-1. Add comprehensive test coverage
-2. Implement real WebSearchTool (Tavily, Serper, etc.)
-3. Add authentication/authorization
-4. Set up proper database for governance notes
-5. Add metrics and observability
-6. Implement rate limiting
-
-## 📄 License
-
-This project is created as a test task for O.Foundation.
-
-## 🔮 Extending to O Ecosystem
-
-This agent core is designed as a foundation for AI-led organization workflows.
-
-### 🔗 Decentralized Infrastructure
-
-**Onchain Tools** - Add blockchain governance via web3.py:
-```python
-class OnchainGovernanceTool(BaseTool):
-    """Submit proposals, cast votes, query governance state"""
-    async def _execute(self, action: str, proposal_id: str, **kwargs):
-        # Interact with smart contracts
-        pass
-```
-
-**$OI Token Accounting** - Track agent operations in $OI tokens
-
-**Decentralized Storage** - Replace in-memory with IPFS/Arweave
-
-**Sovereign AI CEO** - Swap LLM provider when ready:
-```bash
-LLMCLIENT_PROVIDER=sovereign
-SOVEREIGN_AI_ENDPOINT=https://internal.o.xyz/ai-ceo
-```
-
-### 🤖 AI-Led Organization Workflows
-
-- **Scheduled Governance Audits** via Trigger.dev cron jobs
-- **Multi-Agent Coordination** with specialized agents
-- **Automated Treasury Management** using onchain + math tools
-- **Proposal Analysis** with search + LLM + governance notes
-
-## 🔗 Resources
-
-- [FastAPI Documentation](https://fastapi.tiangolo.com/)
-- [Vercel AI SDK](https://sdk.vercel.ai/docs)
-- [OpenAI Function Calling](https://platform.openai.com/docs/guides/function-calling)
-- [Trigger.dev Documentation](https://trigger.dev/docs)
-- [O.Foundation](https://o.xyz)
-- [Web3.py](https://web3py.readthedocs.io/) - Blockchain interaction
-- [IPFS](https://ipfs.tech/) - Decentralized storage
+**Security:** Uses AST parsing with operator whitelist - no arbitrary code execution.
 
 ---
 
-**Built for O.Foundation / O.XYZ – Sovereign AI & $OI Ecosystem**
+### 2. WebSearchTool (`web_search`)
 
+Real web search using DuckDuckGo (free, no API key required). Falls back to mock results if package not installed.
+
+**Parameters:**
+- `query` (string): Search query
+- `num_results` (integer, optional): Number of results to return (default: 5, max: 10)
+
+**Returns:** List of search results with title, snippet, URL
+
+**Setup:**
+1. Install dependency: `pip install ddgs`
+2. No API key required - completely free!
+
+**Example:**
+```json
+{
+  "query": "Python best practices 2024",
+  "num_results": 5
+}
+```
+
+**Note:** Includes rate limiting (1 second between searches) to avoid being blocked.
+
+---
+
+### 3. GovernanceNoteTool (`add_governance_note`)
+
+Appends governance notes to an in-memory store keyed by `proposal_id`.
+
+**Parameters:**
+- `proposal_id` (string): Unique proposal identifier
+- `note` (string): Note content (max 500 characters)
+
+**Returns:** Confirmation with timestamp
+
+**Example:**
+```json
+{
+  "proposal_id": "proposal-42",
+  "note": "Technical review passed - approved for implementation"
+}
+```
+
+**Use cases:**
+- Proposal reviews
+- Automated governance workflows
+- Audit trails for AI decisions
+
+**Note:** Uses in-memory storage. For production, replace with persistent storage (database, IPFS, etc).
+
+---
+
+## HTTP API
+
+The service exposes a minimal FastAPI interface.
+
+### `POST /run-task`
+
+Run a task through the agent.
+
+**Request:**
+
+```json
+{
+  "goal": "string",
+  "context": "optional string",
+  "tools": ["optional", "tool", "names"]
+}
+```
+
+**Response:**
+
+```json
+{
+  "status": "success",
+  "output": "final answer",
+  "trace": [ ...step by step execution... ]
+}
+```
+
+---
+
+### `GET /governance-notes/{proposal_id}`
+
+Retrieve all governance notes for a proposal.
+
+---
+
+## Running the Service
+
+### Requirements
+
+* **Python 3.11+**
+* **Node.js 18+** (for Trigger.dev)
+* **Docker & Docker Compose** (optional, for containerized deployment)
+
+### Quick Start (Development)
+
+**1. Clone and setup environment:**
+
+```bash
+# Copy environment template
+cp env.example .env
+
+# Edit .env and add your API keys:
+# - OPENAI_API_KEY (from OpenAI)
+# - TRIGGER_API_KEY (tr_dev_* for development)
+```
+
+**2. Install Python dependencies:**
+
+```bash
+python -m venv venv
+source venv/bin/activate  # On Windows: venv\Scripts\activate
+pip install -r requirements.txt
+```
+
+**3. Install Node.js dependencies (for Trigger.dev):**
+
+```bash
+cd trigger
+npm install
+cd ..
+```
+
+**4. Start everything at once:**
+
+```bash
+./start-dev.sh
+```
+
+This script will:
+- Start Trigger.dev dev server in background
+- Build and start Docker container with the Python API
+
+**Or start services individually:**
+
+```bash
+# Terminal 1: Start Trigger.dev dev server
+cd trigger
+npx trigger.dev@latest dev
+
+# Terminal 2: Start Python API
+python main.py
+# Or with auto-reload:
+uvicorn src.api.app:app --reload
+```
+
+### Access the Service
+
+* **API**: [http://localhost:8000](http://localhost:8000)
+* **Interactive Docs**: [http://localhost:8000/docs](http://localhost:8000/docs)
+* **ReDoc**: [http://localhost:8000/redoc](http://localhost:8000/redoc)
+
+---
+
+## Docker Deployment
+
+### Development with Docker Compose
+
+```bash
+# Build and start
+docker-compose up --build
+
+# Run in background
+docker-compose up -d
+
+# View logs
+docker-compose logs -f
+
+# Stop
+docker-compose down
+```
+
+### Production Deployment
+
+**1. Update environment variables:**
+
+```bash
+# In docker-compose.yml or .env file:
+TRIGGER_API_KEY=tr_prod_your-production-key-here
+OPENAI_API_KEY=your-openai-key-here
+ENVIRONMENT=production
+```
+
+**2. Deploy Trigger.dev jobs:**
+
+```bash
+cd trigger
+npx trigger.dev@latest deploy
+```
+
+**3. Start the service:**
+
+```bash
+docker-compose up -d
+```
+
+**Important:** Make sure to set `OPENAI_API_KEY` in your Trigger.dev dashboard environment variables for production jobs!
+
+---
+
+## Example Tasks
+
+### Single‑Tool Usage
+
+**Goal:**
+
+```
+Calculate 12 * (4 + 6)
+```
+
+The agent chooses `MathTool`, executes it, and returns the result with a trace.
+
+---
+
+### Multi‑Step Tool Usage
+
+**Goal:**
+
+```
+Search for Python best practices and summarize what you find
+```
+
+The agent:
+
+1. Calls `WebSearchTool`
+2. Uses the results to generate a final answer
+3. Returns a structured trace of both steps
+
+---
+
+### Governance Workflow
+
+**Goal:**
+
+```
+Add a governance note to proposal-42 saying the technical review passed
+```
+
+The agent extracts the proposal ID and note content, calls `GovernanceNoteTool`, and stores the note.
+
+---
+
+## Code Structure
+
+```
+src/
+├── agent/      # Agent core and execution logic
+├── tools/      # Tool definitions and registry
+├── llm/        # LLM client abstraction
+├── api/        # FastAPI routes
+├── storage/    # In‑memory governance store
+└── schemas/    # Pydantic models
+```
+
+Each layer is intentionally small and readable. The goal is clarity over cleverness.
+
+---
+
+## Testing
+
+### Run All Tests
+
+```bash
+pytest
+```
+
+### Run Specific Test Suite
+
+```bash
+# Test tools
+pytest tests/test_tools.py -v
+
+# Test agent
+pytest tests/test_agent.py -v
+
+# Test API
+pytest tests/test_api.py -v
+```
+
+### Test Coverage
+
+```bash
+pytest --cov=src --cov-report=html
+```
+
+---
+
+## Extending This Core
+
+This project is designed to be extended, not rewritten.
+
+### Possible Extensions
+
+* **Persistent Storage**: Replace in‑memory storage with PostgreSQL, Redis, or decentralized stores (IPFS/Arweave)
+* **On-Chain Tools**: Add tools for governance and treasury management on blockchain
+* **Scheduled Jobs**: Use Trigger.dev's scheduled tasks for recurring workflows
+* **Custom LLM**: Swap OpenAI for sovereign or internal AI models via the `LLMClient` interface
+* **More Tools**: Add tools for email, Slack, GitHub, database queries, etc.
+* **Streaming**: Add SSE/WebSocket support for real-time agent responses
+* **Multi-Agent**: Coordinate multiple specialized agents for complex tasks
+
+The abstractions are already in place to support these extensions.
+
+---
+
+## Troubleshooting
+
+### Common Issues
+
+**"Invalid API key" from OpenAI:**
+- Check `OPENAI_API_KEY` is set correctly in `.env`
+- For Trigger.dev jobs, also set it in the Trigger.dev dashboard
+
+**Trigger.dev jobs not running:**
+- Make sure `npx trigger.dev@latest dev` is running for development
+- For production, ensure jobs are deployed: `npx trigger.dev@latest deploy`
+- Check API key prefix matches environment (`tr_dev_*` vs `tr_prod_*`)
+
+**WebSearchTool returns mock results:**
+- Install DuckDuckGo package: `pip install ddgs`
+- Check for rate limiting (1 second between searches)
+
+**Docker container won't start:**
+- Check all required environment variables are set
+- Review logs: `docker-compose logs -f`
+- Ensure ports 8000 is not already in use
+
+---
+
+## License
+
+Built as a test task for **O.Foundation**.
+
+---
+
+## References
+- Trigger.dev docs: https://trigger.dev/docs
+- Vercel AI SDK docs: https://sdk.vercel.ai/docs
+- My website: https://www.codefred.dev

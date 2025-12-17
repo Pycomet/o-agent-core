@@ -22,10 +22,12 @@ class GovernanceStore:
             if proposal_id not in self._store:
                 self._store[proposal_id] = []
 
-            self._store[proposal_id].append({
-                "note": note,
-                "timestamp": datetime.utcnow().isoformat() + "Z",
-            })
+            self._store[proposal_id].append(
+                {
+                    "note": note,
+                    "timestamp": datetime.utcnow().isoformat() + "Z",
+                }
+            )
 
     def get_notes(self, proposal_id: str) -> List[Dict[str, str]]:
         """
@@ -48,4 +50,3 @@ class GovernanceStore:
 
 # Global instance for the application
 governance_store = GovernanceStore()
-

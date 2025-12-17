@@ -1,10 +1,3 @@
-"""
-Main entry point for O-Agent Core.
-
-This file provides the entry point for running the FastAPI application.
-For Trigger.dev jobs, see src/jobs/agent_jobs.py
-"""
-
 import uvicorn
 import os
 from dotenv import load_dotenv
@@ -17,7 +10,7 @@ if __name__ == "__main__":
     host = os.getenv("HOST", "0.0.0.0")
     port = int(os.getenv("PORT", "8000"))
     reload = os.getenv("ENVIRONMENT", "development") == "development"
-    
+
     # Run FastAPI application
     uvicorn.run(
         "src.api.app:app",
@@ -26,4 +19,3 @@ if __name__ == "__main__":
         reload=reload,
         log_level=os.getenv("LOG_LEVEL", "info").lower(),
     )
-
