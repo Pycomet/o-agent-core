@@ -67,11 +67,3 @@ class TaskResult(BaseModel):
         }
 
 
-class GovernanceNotesResponse(BaseModel):
-    """Response for governance notes endpoint"""
-
-    proposal_id: str = Field(..., description="Proposal identifier")
-    notes: List[dict] = Field(
-        default_factory=list, description="List of notes for the proposal"
-    )
-    count: int = Field(..., description="Total number of notes")

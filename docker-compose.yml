@@ -7,15 +7,8 @@ services:
     ports:
       - "8000:8000"
     environment:
-      # LLM Configuration
       - OPENAI_API_KEY=${OPENAI_API_KEY}
       - OPENAI_MODEL=${OPENAI_MODEL:-gpt-4o-mini}
-      
-      # Trigger.dev Configuration
-      - TRIGGER_API_KEY=${TRIGGER_API_KEY}
-      - TRIGGER_API_URL=${TRIGGER_API_URL:-https://api.trigger.dev}
-      
-      # Application
       - LOG_LEVEL=${LOG_LEVEL:-INFO}
       - ENVIRONMENT=${ENVIRONMENT:-production}
       - HOST=0.0.0.0
@@ -27,10 +20,3 @@ services:
       timeout: 10s
       retries: 3
       start_period: 10s
-    networks:
-      - o-agent-network
-
-networks:
-  o-agent-network:
-    driver: bridge
-

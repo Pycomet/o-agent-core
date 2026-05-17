@@ -76,20 +76,28 @@ class Agent:
             while iteration < self.max_iterations:
                 iteration += 1
 
-                # Get LLM response
+                # Get LLM response (low temperature for repeatable tool selection)
                 response = await self.llm_client.generate_with_tools(
                     messages=messages,
                     tools=tool_definitions,
-                    temperature=0.7,
+                    temperature=0.2,
                 )
 
                 # Check if LLM wants to call tools
                 if response.tool_calls:
-                    # Process each tool call
+                    # Assistant message with tool_calls must precede the tool responses
+                    messages.append(
+                        LLMMessage(
+                            role="assistant",
+                            content=response.content or "",
+                            tool_calls=response.tool_calls,
+                        )
+                    )
+
                     for tool_call in response.tool_calls:
                         function_name = tool_call["function"]["name"]
+                        tool_call_id = tool_call.get("id")
 
-                        # Parse arguments
                         try:
                             function_args = json.loads(
                                 tool_call["function"]["arguments"]
@@ -101,9 +109,16 @@ class Agent:
                                 tool_args={},
                                 error=error_msg,
                             )
+                            messages.append(
+                                LLMMessage(
+                                    role="tool",
+                                    content=json.dumps({"error": error_msg}),
+                                    name=function_name,
+                                    tool_call_id=tool_call_id,
+                                )
+                            )
                             continue
 
-                        # Execute tool
                         try:
                             result = await self.tool_registry.execute_tool(
                                 function_name, function_args
@@ -113,13 +128,12 @@ class Agent:
                                 tool_args=function_args,
                                 result=result,
                             )
-
-                            # Add tool result to conversation
                             messages.append(
                                 LLMMessage(
                                     role="tool",
                                     content=json.dumps(result),
                                     name=function_name,
+                                    tool_call_id=tool_call_id,
                                 )
                             )
                         except Exception as e:
@@ -129,26 +143,15 @@ class Agent:
                                 tool_args=function_args,
                                 error=error_msg,
                             )
-
-                            # Add error to conversation
                             messages.append(
                                 LLMMessage(
                                     role="tool",
                                     content=json.dumps({"error": error_msg}),
                                     name=function_name,
+                                    tool_call_id=tool_call_id,
                                 )
                             )
 
-                    # Add assistant message to history (for tool calls)
-                    messages.append(
-                        LLMMessage(
-                            role="assistant",
-                            content=response.content or "",
-                            tool_calls=response.tool_calls,
-                        )
-                    )
-
-                    # Continue loop to get next response
                     continue
 
                 # No tool calls - LLM provided final answer
@@ -177,19 +180,14 @@ class Agent:
 
     def _build_system_message(self) -> str:
         """Build the system message for the LLM"""
-        return """You are an AI agent designed to accomplish tasks using available tools.
+        return """You are an AI agent that accomplishes tasks using the tools available to you.
 
 When given a goal:
-1. Analyze what needs to be done
-2. Use available tools to gather information or perform actions
-3. Call tools sequentially as needed
-4. Once you have enough information, provide a clear final answer
+1. Decide which tool(s) to call.
+2. Call them — one at a time, or in parallel when independent.
+3. Once you have what you need, synthesize a clear, concise final answer.
 
-Guidelines:
-- Use tools when you need to perform calculations, search for information, or record governance notes
-- You can call multiple tools in sequence to accomplish complex tasks
-- Always provide a clear, concise final answer after using tools
-- If a tool fails, try to work around it or explain the limitation in your answer"""
+If a tool fails, try a different approach or explain the limitation in your final answer."""
 
     def _state_to_result(self, state: ExecutionState) -> TaskResult:
         """Convert ExecutionState to TaskResult schema"""

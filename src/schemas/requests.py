@@ -21,8 +21,7 @@ class RunTaskRequest(BaseModel):
     class Config:
         json_schema_extra = {
             "example": {
-                "goal": "Calculate the square root of 144 and search for the top 5 most popular programming languages and a governance note to proposal-42 saying the technical review passed",
-                "context": "User is learning about perfect squares",
-                "tools": ["math", "web_search", "governance_note"],
+                "goal": "What is (12 * 8) + 47?",
+                "tools": ["math"],
             }
         }

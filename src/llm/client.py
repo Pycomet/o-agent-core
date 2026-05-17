@@ -8,7 +8,8 @@ class LLMMessage(BaseModel):
 
     role: str  # "system", "user", "assistant", "tool"
     content: str
-    name: Optional[str] = None  # For tool responses
+    name: Optional[str] = None  # Tool function name on tool responses
+    tool_call_id: Optional[str] = None  # Required by OpenAI on tool responses
     tool_calls: Optional[
         List[Dict[str, Any]]
     ] = None  # For assistant messages with tool calls

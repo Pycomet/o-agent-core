@@ -4,8 +4,6 @@ from typing import Dict, List, Optional, Any
 
 from .base import BaseTool
 from .math_tool import MathTool
-from .web_search import WebSearchTool
-from .governance_tool import GovernanceNoteTool
 
 
 class ToolRegistry:
@@ -21,15 +19,11 @@ class ToolRegistry:
         Initialize the tool registry.
 
         Args:
-            tools: Optional list of tool instances. If None, uses default tools.
+            tools: Optional list of tool instances. If None, registers
+                   the built-in starter tools (MathTool).
         """
         if tools is None:
-            # Default tools
-            tools = [
-                MathTool(),
-                WebSearchTool(),
-                GovernanceNoteTool(),
-            ]
+            tools = [MathTool()]
 
         self._tools: Dict[str, BaseTool] = {tool.name: tool for tool in tools}
 

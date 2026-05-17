@@ -57,12 +57,10 @@ class MathTool(BaseTool):
         Raises:
             ValueError: If expression contains unsafe operations
         """
-        if isinstance(node, ast.Constant):  # Python 3.8+
+        if isinstance(node, ast.Constant):
             if isinstance(node.value, (int, float)):
                 return float(node.value)
             raise ValueError(f"Unsupported constant type: {type(node.value)}")
-        elif isinstance(node, ast.Num):  # Python 3.7 compatibility
-            return float(node.n)
         elif isinstance(node, ast.BinOp):
             op_type = type(node.op)
             if op_type not in SAFE_OPERATORS:
